@@ -1,37 +1,36 @@
 # Anomaly Detection — Supply Chain
 
-Détection non-supervisée d'anomalies de demande sur données publiques **M5 Walmart**.
-Pendant public/synthétique d'un projet de détection d'anomalies S&OP.
+Unsupervised demand anomaly detection on the public **M5 Walmart** dataset.
 
-> ⚠️ **Données** : dataset public M5 uniquement. Aucune donnée d'entreprise n'est
-> utilisée ni versionnée dans ce dépôt.
 
-## Problème
+> ⚠️ **Data**: public M5 dataset only. No company data is used or versioned in
+> this repository.
 
-Repérer automatiquement les signaux de demande anormaux (chocs de ventes,
-ruptures de tendance, incohérences) au grain **SKU × Store × semaine**, pour
-prioriser l'attention du planner avant que l'anomalie ne cascade en rupture ou
-surstock.
+## Problem
 
-## Approche
+Automatically surface abnormal demand signals (sales shocks, trend breaks,
+inconsistencies) at the **SKU × Store × week** grain, to prioritize planner
+attention before an anomaly cascades into a stockout or overstock.
 
-| Étape | Choix |
+## Approach
+
+| Step | Choice |
 |---|---|
-| Signal | Ventes brutes, données au modèle sous forme d'**écarts** (jamais de niveau absolu) |
-| Grille | SKU × Store × semaine |
-| Modèles | Isolation Forest (tabulaire) → LSTM Autoencoder (séquence) → consensus |
-| Évaluation | **Injection synthétique** d'anomalies labellisées |
-| Métrique | **PR-AUC** (déséquilibre extrême) + courbe recall vs sévérité |
+| Signal | Raw sales, fed to the model as **deviations** (never absolute levels) |
+| Grid | SKU × Store × week |
+| Models | Isolation Forest (tabular) → LSTM Autoencoder (sequence) → consensus |
+| Evaluation | **Synthetic injection** of labeled anomalies |
+| Metric | **PR-AUC** (extreme imbalance) + recall-vs-severity curve |
 
-## Points méthodologiques
+## Methodological notes
 
-- **La saisonnalité est portée par le feature engineering** : z-scores glissants,
-  déviations saisonnières, flags calendaires (holiday / SNAP / event) — le modèle
-  apprend à distinguer « haut *parce que* décembre » de « haut anormalement ».
-- **Intermittence M5 traitée explicitement** : l'évaluation ne porte que sur les
-  séries denses (z-score/σ mal définis sur les séries clairsemées).
-- **Seuil = arbitrage coût métier** (rupture ratée ≠ fausse alerte), pas un
-  hyperparamètre au doigt mouillé.
+- **Seasonality is carried by feature engineering**: rolling z-scores, seasonal
+  deviations, calendar flags (holiday / SNAP / event) — the model learns to tell
+  "high *because* December" from "abnormally high".
+- **M5 intermittency handled explicitly**: evaluation only covers dense series
+  (z-score/σ are ill-defined on sparse series).
+- **Threshold = business-cost trade-off** (missed stockout ≠ false alarm), not a
+  hand-waved hyperparameter.
 
 ## Stack
 
@@ -41,24 +40,24 @@ Python · PySpark (local mode) · scikit-learn · MLflow · FastAPI · Docker ·
 
 ```
 src/
-  data/         agrégation quotidien -> hebdo (PySpark)
-  features/     feature engineering contextuel
-  evaluation/   injection synthétique + métriques
-  models/       Isolation Forest (+ LSTM AE en V2)
-  serving/      API FastAPI
+  data/         daily -> weekly aggregation (PySpark)
+  features/     contextual feature engineering
+  evaluation/   synthetic injection + metrics
+  models/       Isolation Forest (+ LSTM AE in V2)
+  serving/      FastAPI app
 ```
 
-## Statut
+## Status
 
-🚧 En construction — MVP (Isolation Forest + injection + API) en cours.
+🚧 Work in progress — MVP (Isolation Forest + injection + API) underway.
 
 ## Roadmap
 
-- [ ] Phase 1 — EDA + agrégation hebdo + segmentation densité
-- [ ] Phase 2 — Feature engineering contextuel
-- [ ] Phase 3 — Injection synthétique + harnais de métriques
-- [ ] Phase 4 — Isolation Forest + évaluation
-- [ ] Phase 5 — API FastAPI + Cloud Run *(jalon MVP publiable)*
+- [ ] Phase 1 — EDA + weekly aggregation + density segmentation
+- [ ] Phase 2 — Contextual feature engineering
+- [ ] Phase 3 — Synthetic injection + metrics harness
+- [ ] Phase 4 — Isolation Forest + evaluation
+- [ ] Phase 5 — FastAPI + Cloud Run *(publishable MVP milestone)*
 - [ ] Phase 6 — LSTM Autoencoder
-- [ ] Phase 7 — Couche de consensus
-- [ ] Phase 8 — Simulation de flux Pub/Sub
+- [ ] Phase 7 — Consensus layer
+- [ ] Phase 8 — Pub/Sub stream simulation

@@ -1,35 +1,34 @@
-"""Phase 2 — Feature engineering CONTEXTUEL.
+"""Phase 2 — CONTEXTUAL feature engineering.
 
-Coeur du projet en signal "ventes brutes" : la baseline n'absorbe plus la
-saisonnalité, donc la charge de "ce qui est attendu" migre ICI.
+Core of the project under the "raw sales" signal: the baseline no longer absorbs
+seasonality, so the burden of "what is expected" migrates HERE.
 
-REGLE D'OR : ne jamais donner le niveau brut absolu à l'Isolation Forest
-(sinon les gros magasins ressortent "anormaux"). On nourrit des ECARTS.
+GOLDEN RULE: never feed the raw absolute level to the Isolation Forest
+(otherwise large stores show up as "anomalous"). We feed DEVIATIONS.
 """
 import pandas as pd
 
 
 def add_local_deviation(df: pd.DataFrame) -> pd.DataFrame:
-    """Déviation locale : z-score glissant, delta WoW.
+    """Local deviation: rolling z-score, WoW delta.
 
-    Le z-score glissant DOIT utiliser une moyenne/écart-type décalés (shift)
-    pour ne pas fuiter la valeur courante dans sa propre statistique.
+    The rolling z-score MUST use shifted mean/std so the current value does not
+    leak into its own statistic.
     """
     raise NotImplementedError("Phase 2")
 
 
 def add_seasonal_deviation(df: pd.DataFrame) -> pd.DataFrame:
-    """Déviation saisonnière : écart à la même semaine N-1, écart à une
-    moyenne saisonnière. Permet de distinguer 'haut PARCE QUE décembre' de
-    'haut anormalement'."""
+    """Seasonal deviation: gap to the same week last year, gap to a seasonal
+    average. Lets the model tell 'high BECAUSE December' from 'abnormally high'."""
     raise NotImplementedError("Phase 2")
 
 
 def add_calendar_flags(df: pd.DataFrame) -> pd.DataFrame:
-    """Flags calendaires : holiday, SNAP, event."""
+    """Calendar flags: holiday, SNAP, event."""
     raise NotImplementedError("Phase 2")
 
 
 def build_feature_matrix(df: pd.DataFrame) -> pd.DataFrame:
-    """Assemble la matrice de features. AUCUNE colonne de niveau absolu côté IF."""
+    """Assemble the feature matrix. NO absolute-level column on the IF side."""
     raise NotImplementedError("Phase 2")

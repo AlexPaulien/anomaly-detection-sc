@@ -1,22 +1,22 @@
-"""Phase 3 — Harnais de métriques, réutilisable pour tous les modèles.
+"""Phase 3 — Metrics harness, reusable across all models.
 
-PR-AUC et non ROC-AUC : déséquilibre extrême (anomalies rares), la ROC
-donnerait un score flatteur et trompeur.
+PR-AUC rather than ROC-AUC: extreme imbalance (rare anomalies), ROC would give
+a flattering and misleading score.
 """
 
 
 def pr_auc(y_true, scores) -> float:
-    """Aire sous la courbe precision-recall."""
+    """Area under the precision-recall curve."""
     raise NotImplementedError("Phase 3")
 
 
 def recall_vs_severity(y_true, scores, severities):
-    """Courbe recall vs sévérité (k) — LE graphe qui vend le projet.
-    Ex : '90% des chocs à 3sigma détectés, 40% à 1.5sigma'."""
+    """Recall vs severity (k) curve — THE graph that sells the project.
+    E.g. '90% of shocks at 3sigma detected, 40% at 1.5sigma'."""
     raise NotImplementedError("Phase 3")
 
 
 def precision_by_type(y_true, scores, anomaly_types):
-    """Precision par type d'anomalie — révèle ce que l'IF rate, et donc
-    l'argument d'entrée du LSTM AE en V2."""
+    """Precision per anomaly type — reveals what the IF misses, hence the entry
+    argument for the LSTM AE in V2."""
     raise NotImplementedError("Phase 3")

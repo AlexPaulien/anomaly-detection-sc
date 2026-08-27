@@ -1,12 +1,11 @@
-"""Phase 3 — Injection synthétique d'anomalies (LA brique qui porte l'éval).
+"""Phase 3 — Synthetic anomaly injection (THE brick that carries evaluation).
 
-Principe : les modèles s'entraînent en unsupervised sur toute la donnée ; on
-EVALUE sur des anomalies qu'on a injectées, donc labellisées. C'est ce qui
-donne un precision/recall dans un cadre non-supervisé (analogue du holdout
-honnête du P1).
+Principle: models train unsupervised on all the data; we EVALUATE on anomalies
+we injected, hence labeled. This is what yields precision/recall in an
+unsupervised setting (analogous to the P1 honest holdout).
 
-Pré-requis : ne travailler que sur le pool de séries DENSES propres. La
-magnitude est TOUJOURS relative à la variance locale, jamais absolue.
+Prerequisite: work only on the clean DENSE series pool. Magnitude is ALWAYS
+relative to local variance, never absolute.
 """
 from dataclasses import dataclass
 
@@ -14,20 +13,19 @@ from dataclasses import dataclass
 @dataclass
 class InjectionConfig:
     anomaly_type: str   # "spike" | "drop" | "level_shift" | "variance_change" | "contextual"
-    severity_k: float   # magnitude en k * sigma_local
+    severity_k: float   # magnitude in k * local_sigma
     n_injections: int
 
 
 def inject_anomalies(series_df, config: InjectionConfig):
-    """Injecte des anomalies typées dans des séries propres et renvoie
-    (série modifiée, labels).
+    """Inject typed anomalies into clean series and return (modified series, labels).
 
-    Retour attendu : chaque (série, semaine) touché -> label 1, reste -> 0.
+    Expected output: each touched (series, week) -> label 1, everything else -> 0.
 
-    Types :
-      - spike / drop : choc ponctuel de +/- k*sigma
-      - level_shift  : rupture de niveau soutenue
-      - variance_change : changement de variance
-      - contextual   : valeur normale en absolu mais hors-saison
+    Types:
+      - spike / drop: point shock of +/- k*sigma
+      - level_shift: sustained level break
+      - variance_change: change in variance
+      - contextual: value normal in absolute terms but out of season
     """
-    raise NotImplementedError("Phase 3 — première brique à coder après l'EDA")
+    raise NotImplementedError("Phase 3 — first brick to code after EDA")

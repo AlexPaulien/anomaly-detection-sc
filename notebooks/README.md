@@ -1,6 +1,6 @@
 # Notebooks
 
-- `01_eda.ipynb` — Phase 1 : exploration M5, régimes de volume, intermittence,
-  saisonnalité, événements calendaires. Décision de segmentation densité.
+- `01_eda.ipynb` — Phase 1: M5 exploration, volume regimes, intermittency,
+  seasonality, calendar events. Density segmentation decision.
 
-(Les notebooks servent à l'exploration ; le code réutilisable vit dans `src/`.)
+(Notebooks are for exploration; reusable code lives in `src/`.)

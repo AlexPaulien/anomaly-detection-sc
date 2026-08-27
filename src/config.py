@@ -1,6 +1,6 @@
-"""Configuration centrale du projet.
+"""Central project configuration.
 
-Données publiques M5 Walmart uniquement. Aucune donnée interne.
+Public M5 Walmart dataset only. No internal/company data.
 """
 from pathlib import Path
 
@@ -8,17 +8,17 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 MODELS_DIR = ROOT / "models"
 
-# Grille commune actée : SKU x Store x semaine
+# Agreed common grid: SKU x Store x week
 GRAIN = ["sku", "store", "week"]
 
-# GCP — région us-central1 : données publiques/synthétiques, pas de contrainte
-# GDPR, free tier US.
+# GCP — us-central1 region: public/synthetic data, no GDPR localization
+# constraint, US free tier.
 GCP_REGION = "us-central1"
 
-# Régime de volume : seuil de densité pour séparer séries denses / intermittentes.
-# À calibrer après l'EDA (Phase 1). L'évaluation par injection ne portera que
-# sur les séries DENSES (z-score/sigma mal définis sur les intermittentes).
-DENSITY_MIN_NONZERO_RATIO = 0.5  # placeholder — à ajuster via EDA
+# Volume regime: density threshold to split dense / intermittent series.
+# To be calibrated after EDA (Phase 1). Injection-based evaluation will only
+# cover DENSE series (z-score/sigma are ill-defined on intermittent ones).
+DENSITY_MIN_NONZERO_RATIO = 0.5  # placeholder — tune via EDA
 
 # MLflow
 MLFLOW_TRACKING_URI = f"sqlite:///{ROOT / 'mlflow.db'}"

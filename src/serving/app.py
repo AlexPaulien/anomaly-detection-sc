@@ -1,4 +1,4 @@
-"""Phase 5 — API de scoring FastAPI (endpoint MVP)."""
+"""Phase 5 — FastAPI scoring API (MVP endpoint)."""
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -9,7 +9,7 @@ class ScoringRequest(BaseModel):
     sku: str
     store: str
     week: str
-    # + features contextuelles attendues par le modèle
+    # + contextual features expected by the model
 
 
 class ScoringResponse(BaseModel):
@@ -24,5 +24,5 @@ def health():
 
 @app.post("/score", response_model=ScoringResponse)
 def score(req: ScoringRequest):
-    """TODO Phase 5 : charger le modèle depuis models/ et scorer."""
+    """TODO Phase 5: load the model from models/ and score."""
     raise NotImplementedError("Phase 5")

@@ -1,4 +1,4 @@
-# --- Core MVP (Phases 1 à 5) ---
+# --- Core MVP (Phases 1 to 5) ---
 pyspark==3.5.1
 pandas==2.2.2
 numpy==1.26.4
@@ -9,8 +9,8 @@ uvicorn==0.30.1
 pydantic==2.8.2
 
 # --- V2 (Phase 6 — LSTM Autoencoder) ---
-# Décommenter au moment de la V2. Entraînement possiblement déporté sur Colab
-# si la RAM 8 Go est insuffisante.
+# Uncomment for V2. Training may be offloaded to Colab if 8 GB RAM is
+# insufficient.
 # tensorflow==2.16.1
 
 # --- Dev ---

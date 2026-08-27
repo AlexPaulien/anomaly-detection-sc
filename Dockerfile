@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# libgomp1 : requis par scikit-learn / LightGBM (OpenMP) — leçon P1
+# libgomp1: required by scikit-learn / LightGBM (OpenMP) — lesson from P1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
-# Spark n'est pas requis pour le SERVING (scoring seul) : on pourrait alléger
-# l'image en retirant pyspark ici. À arbitrer au moment du déploiement.
+# Spark is not required for SERVING (scoring only): the image could be slimmed
+# down by dropping pyspark here. To be decided at deployment time.
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/

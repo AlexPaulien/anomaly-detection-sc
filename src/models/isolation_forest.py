@@ -1,19 +1,19 @@
 """Phase 4 — Isolation Forest (MVP).
 
-Tabulaire. Le signal temporel vient EXCLUSIVEMENT du feature engineering amont
-(z-scores glissants, lags, déviations) — l'IF ne voit pas de séquence.
+Tabular. The temporal signal comes EXCLUSIVELY from upstream feature engineering
+(rolling z-scores, lags, deviations) — the IF never sees a sequence.
 
-Seuil justifié par le trade-off precision/recall traduit en COUT METIER
-(rupture ratée != fausse alerte), pas par un `contamination` posé au hasard.
+Threshold justified by the precision/recall trade-off translated into BUSINESS
+COST (missed stockout != false alarm), not by a `contamination` set at random.
 """
 from sklearn.ensemble import IsolationForest
 
 
 def train_isolation_forest(X, random_state: int = 42) -> IsolationForest:
-    """Entraîne un IF unsupervised sur la matrice de features (sans niveaux absolus)."""
+    """Train an unsupervised IF on the feature matrix (no absolute levels)."""
     raise NotImplementedError("Phase 4")
 
 
 def choose_threshold(scores, cost_missed: float, cost_false_alarm: float):
-    """Choisit le seuil de flag en minimisant le coût métier attendu."""
+    """Choose the flagging threshold by minimizing expected business cost."""
     raise NotImplementedError("Phase 4")
