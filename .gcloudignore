@@ -1,0 +1,17 @@
+# IMPORTANT : ne PAS mettre "#!include:.gitignore" ici.
+# Sinon Cloud Build hériterait de l'exclusion de models/ et le déploiement
+# partirait sans le modèle entraîné (leçon apprise sur le P1).
+
+data/
+mlruns/
+mlflow.db
+notebooks/
+tests/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.DS_Store
+.vscode/
+.git/
