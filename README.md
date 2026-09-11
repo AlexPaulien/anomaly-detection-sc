@@ -43,10 +43,19 @@ number, not intuition. Full analysis in `notebooks/01_eda.ipynb`.
   HOBBIES and HOUSEHOLD are flat (not SNAP-eligible). `snap_days` is kept as a
   feature with `cat_id`, letting the models learn the interaction rather than
   hand-crafting it.
-- **Only sporting events move demand.** Of four event types, only Sporting
-  (Super Bowl) shows a lift (+6.4% weekly); Cultural, Religious and National are
-  flat or negative. The raw event count is dropped in favour of a single
-  `is_sporting_week` flag — a data-justified subtractive choice.
+- **No event feature survives scrutiny.** Super Bowl lift is +0.5% (noise). NBA
+  Finals show +5.2% raw but only **+3.3% once de-confounded from June
+  seasonality** (compared to adjacent June weeks, not the global baseline) —
+  below any anomaly-detection threshold. Conclusion: no M5 event shifts weekly
+  food demand enough to warrant a feature; the YoY seasonal signal already
+  captures the expected seasonal level. A fully data-justified rejection.
+
+## Feature Engineering
+
+- **Dense pool is fully continuous:** all 15,509 series span the same 277 weeks
+  with no gaps (density ≥ 0.8 selected products present since d_1). Rolling and
+  YoY windows are calendar-exact by row position. Scope note: evaluation covers
+  mature, established series — not launch-phase products.
 
 ## Stack
 
