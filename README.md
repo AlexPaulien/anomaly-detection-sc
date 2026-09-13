@@ -57,6 +57,38 @@ number, not intuition. Full analysis in `notebooks/01_eda.ipynb`.
   YoY windows are calendar-exact by row position. Scope note: evaluation covers
   mature, established series — not launch-phase products.
 
+## Injection
+
+- **Drop injection is volume-restricted.** On low-volume series, mean - k*sigma
+  collapses below zero (82% of series saturate at k=3), degrading the drop into a
+  binary zeroing. Drops are therefore injected only where mean - k*sigma > 0
+  (621/3000 series at k=3, fewer at higher k). Consequence: drop recall is
+  measured on high-volume, low-relative-variance series and is optimistic
+  vs the full dense pool — a documented scope limit.
+- **Injected anomaly types exercise distinct features (validated).** Spikes
+  surface in the local z-score (mean recomputed z ≈ 3 for k=3). Contextual
+  anomalies stay hidden from it (mean |z| = 1.47, below any threshold) but
+  explode in the YoY ratio (mean |yoy_ratio - 1| = 1.09). Confirms each feature
+  earns its place: a z-score-only detector would miss contextual anomalies
+  entirely.
+- **Level-shift injection reproduces rolling-detector absorption (validated).**
+  Mean recomputed z-score across the 8-week plateau decays monotonically:
+  3.01 → 2.17 → 1.76 → 1.45 → 1.23 → 1.07 → 0.89 → 0.79. A local-deviation
+  detector flags the shift onset but goes blind to its persistence as the rolling
+  mean absorbs the new level (~13-week window). This is the mechanistic
+  justification for the sequence-based LSTM autoencoder, which reconstructs
+  waveform shape and does not absorb sustained regime change.
+
+
+## Evaluation Metrics
+
+- **Metrics must be reported per anomaly type, never aggregated.** Level shifts
+  are 84% of injected positives (8 labelled weeks each vs 1 for spike/drop/
+  contextual), so a single global PR-AUC would just reflect level-shift
+  performance. Report PR-AUC and recall separately per type; recall-vs-severity
+  is one curve per k-dependent type (spike, drop, level_shift), contextual is a
+  single point.
+
 ## Stack
 
 Python · PySpark (local mode) · scikit-learn · MLflow · FastAPI · Docker · GCP Cloud Run
