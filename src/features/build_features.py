@@ -138,8 +138,9 @@ def build_feature_matrix(weekly, dense_ids):
     df = add_context_features(df)
 
     keep = ["id", "item_id", "store_id", "cat_id", "state_id",
-            "wm_yr_wk", "month", "sales"] + \
-           ["sales_zscore", "yoy_ratio", "wow_delta", "snap_days", "cat_code"]
+        "wm_yr_wk", "month", "sales",
+        "roll_mean", "roll_std", "sales_prev", "sales_ly"] + \
+       ["sales_zscore", "yoy_ratio", "wow_delta", "snap_days", "cat_code"]
     return df.select(*dict.fromkeys(keep))   # dedup while preserving order
 
 
