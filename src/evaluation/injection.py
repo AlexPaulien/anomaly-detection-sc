@@ -278,6 +278,7 @@ def build_eval_set(features, pool, k_grid=SEVERITY_GRID, seed=INJECTION_SEED):
         .join(injected_cells, on=["id", "wm_yr_wk"], how="left")
         .filter(F.col("is_pool").isNull())          # exclude injected cells
         .filter(F.col("yoy_ratio").isNotNull() & (F.col("roll_std") > 0))
+        .filter(F.abs(F.col("sales_zscore")) < 2)
         .withColumn("anomaly_type", F.lit("normal"))
         .withColumn("severity_k", F.lit(None).cast("double"))
         .withColumn("label", F.lit(0))

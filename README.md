@@ -80,14 +80,81 @@ number, not intuition. Full analysis in `notebooks/01_eda.ipynb`.
   waveform shape and does not absorb sustained regime change.
 
 
-## Evaluation Metrics
+## Isolation Forest: results
 
-- **Metrics must be reported per anomaly type, never aggregated.** Level shifts
-  are 84% of injected positives (8 labelled weeks each vs 1 for spike/drop/
-  contextual), so a single global PR-AUC would just reflect level-shift
-  performance. Report PR-AUC and recall separately per type; recall-vs-severity
-  is one curve per k-dependent type (spike, drop, level_shift), contextual is a
-  single point.
+### Evaluation protocol
+
+The model is unsupervised, so performance is measured against **synthetically
+injected anomalies** (see `02_injection`): the model trains on all dense series
+(labels never enter training) and is scored on a labelled eval set of four
+anomaly types across severities k ∈ {2, 2.5, 3, 3.5, 4}, plus clearly-normal
+negatives.
+
+**Metric choice.** We report **recall at a fixed false-positive budget**
+(flagging the top 5% / top 1% most anomalous weeks), not PR-AUC as the headline.
+On this problem the positive:negative ratio is ~1:150, where PR-AUC is
+mechanically low and hard to read (a strong detector still scores ~0.3). Recall
+at a fixed FP rate speaks the operational language — *"within the alert budget a
+planner can triage, what share of true anomalies do we catch?"* — and is the
+metric a demand planner actually cares about. PR-AUC is kept as a secondary
+diagnostic.
+
+**Negatives are restricted to clearly-normal weeks (|z| < 2).** M5 is a real
+retail dataset containing unlabeled natural anomalies (2.7% of weeks have
+|z| ≥ 3). Without this filter, the model is penalised for correctly flagging
+real-but-unlabeled anomalies, collapsing every metric. The trade-off, stated
+honestly: we measure separation from *clearly normal* weeks, not from natural
+anomalies.
+
+### Detection profile (recall at fixed FP budget)
+
+| Anomaly type | Severity | recall @ 5% FP | recall @ 1% FP |
+|---|---|---|---|
+| **spike** | k=2 | 26% | 10% |
+| **spike** | k=3 | 54% | 23% |
+| **spike** | k=4 | **81%** | 44% |
+| **drop** | k=2 | 5% | 0.2% |
+| **drop** | k=3 | 13% | 0.3% |
+| **drop** | k=4 | 19% | 0.9% |
+| **contextual** | — | 13% | 5% |
+| **level_shift** | k=2 | 13% | 4% |
+| **level_shift** | k=3 | 19% | 7% |
+| **level_shift** | k=4 | 26% | 10% |
+
+### Reading the profile
+
+- **Spikes — strong, and scale cleanly with severity** (26% → 54% → 81%). The
+  core detector works: at k=4, four of five spikes are caught within a 5% alert
+  budget. This is the reference signal, carried directly by the rolling z-score.
+
+- **Level shifts — the result that motivates the autoencoder.** Even at k=4,
+  recall is only 26%, far below spikes at equal severity. The cause is measured,
+  not assumed: a rolling detector **absorbs** a sustained shift. The mean
+  recomputed z-score across the 8-week plateau decays 3.01 → 2.17 → 1.76 → 1.45
+  → 1.23 → 1.07 → 0.89 → 0.79 — the IF flags the onset and goes blind to the
+  persistence, so it catches only the first 2–3 plateau weeks. A sequence model
+  (LSTM autoencoder, Phase 6) that reconstructs waveform shape should cover this
+  blind spot. **This is the quantified case for a second model.**
+
+- **Contextual — weak (13%).** Contextual anomalies are plausible in absolute
+  terms and surface only in the YoY feature; a tree-based IF struggles to isolate
+  a point abnormal on a single dimension while normal on the other five. A
+  structural limit of the IF, and a second target for the autoencoder.
+
+- **Drops — weak and asymmetric (19% at k=4).** The detector is markedly better
+  at upward shocks than downward ones: many weeks have naturally low sales, so a
+  drop is harder to isolate than a spike. Drops are also volume-restricted by
+  construction (on low-volume series, mean − k·σ saturates at zero). A relevant
+  supply-chain caveat — missing a demand collapse can be as costly as missing a
+  spike.
+
+### Summary
+
+The Isolation Forest is a strong detector of **upward point shocks**, mediocre on
+**sustained regime changes** and **seasonal/contextual** anomalies, and weak on
+**downward shocks**. This is a clear, defensible profile that defines the brief
+for the LSTM autoencoder: cover the IF's blind spots on sequence-shaped and
+context-dependent anomalies.
 
 ## Stack
 
