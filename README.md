@@ -131,8 +131,7 @@ anomalies.
   recall is only 26%, far below spikes at equal severity. The cause is measured,
   not assumed: a rolling detector **absorbs** a sustained shift. The mean
   recomputed z-score across the 8-week plateau decays 3.01 → 2.17 → 1.76 → 1.45
-  → 1.23 → 1.07 → 0.89 → 0.79 — the IF flags the onset and goes blind to the
-  persistence, so it catches only the first 2–3 plateau weeks. A sequence model
+  → 1.23 → 1.07 → 0.89 → 0.79 — at a tenable 5% alert budget the IF catches only 20% of level shifts; recall recovers only by widening the budget to impractical alert volumes (775/week already at 5%). A sequence model
   (LSTM autoencoder, Phase 6) that reconstructs waveform shape should cover this
   blind spot. **This is the quantified case for a second model.**
 

@@ -117,3 +117,26 @@ def pr_auc_by_type(eval_pdf):
         ap = average_precision_score(subset["label"], subset["anomaly_score"])
         results[atype] = (ap, len(pos))
     return results
+
+
+
+def choose_threshold(eval_scored, fp_budget=0.05):
+    """Set the operating threshold from a false-positive budget.
+
+    The threshold is the score quantile of the NEGATIVES at (1 - fp_budget):
+    flagging above it means ~fp_budget of normal weeks are flagged (the alert
+    budget). Returned with the implied alert volume and recall per type.
+    """
+    neg = eval_scored[eval_scored["label"] == 0]
+    threshold = neg["anomaly_score"].quantile(1 - fp_budget)
+
+    # Recall per type at this threshold (all severities pooled).
+    recalls = {}
+    for atype in ["spike", "drop", "contextual", "level_shift"]:
+        pos = eval_scored[(eval_scored["label"] == 1) &
+                          (eval_scored["anomaly_type"] == atype)]
+        recalls[atype] = float((pos["anomaly_score"] >= threshold).mean())
+
+    return {"threshold": float(threshold),
+            "fp_budget": fp_budget,
+            "recall_by_type": recalls}
