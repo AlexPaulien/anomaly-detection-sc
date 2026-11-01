@@ -1,11 +1,14 @@
 import pandas as pd
 import numpy as np
+import joblib
+import json
+
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import average_precision_score
 
 from pyspark.sql import functions as F
 
-from src.config import DATA_DIR
+from src.config import DATA_DIR, MLFLOW_TRACKING_URI, MLFLOW_EXPERIMENT, MODELS_DIR
 
 
 
@@ -140,3 +143,121 @@ def choose_threshold(eval_scored, fp_budget=0.05):
     return {"threshold": float(threshold),
             "fp_budget": fp_budget,
             "recall_by_type": recalls}
+
+
+
+def compute_recall_metrics(eval_scored, fp_budgets=(0.05, 0.01)):
+    """Flatten recall@FP per type and severity into MLflow-loggable form.
+
+    Returns (flat_scalars, severity_curves):
+      - flat_scalars: {metric_name: value} for single-point metrics (contextual)
+      - severity_curves: {metric_name: [(step, value), ...]} for k-dependent types,
+        so MLflow renders recall-vs-severity curves (step = int(k*10)).
+    """
+    neg = eval_scored[eval_scored["label"] == 0]
+    thresholds = {f"fp{int(b*100)}": neg["anomaly_score"].quantile(1 - b)
+                  for b in fp_budgets}
+
+    flat, curves = {}, {}
+    for atype in ["spike", "drop", "contextual", "level_shift"]:
+        pt = eval_scored[(eval_scored.label == 1) & (eval_scored.anomaly_type == atype)]
+        for fp_name, thr in thresholds.items():
+            if pt["severity_k"].notna().any():
+                pts = []
+                for k in sorted(pt["severity_k"].dropna().unique()):
+                    p = pt[pt["severity_k"] == k]
+                    pts.append((int(k * 10), float((p.anomaly_score >= thr).mean())))
+                curves[f"recall_{atype}_{fp_name}"] = pts
+            else:
+                flat[f"recall_{atype}_{fp_name}"] = float((pt.anomaly_score >= thr).mean())
+    return flat, curves
+
+
+
+def log_run(model, bounds, threshold_info, eval_scored,
+            if_params=IF_PARAMS, clip_q=CLIP_Q):
+    """Log the full IF run to MLflow: params, metrics, model, and the serving
+    artifacts (clip bounds + threshold) needed to reproduce scoring."""
+    
+    import mlflow
+    import mlflow.sklearn
+    
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT)
+
+    with mlflow.start_run() as run:
+        # --- params ---
+        mlflow.log_params(if_params)
+        mlflow.log_param("clip_quantile", clip_q)
+        mlflow.log_param("fp_budget", threshold_info["fp_budget"])
+        mlflow.log_param("threshold", round(threshold_info["threshold"], 6))
+
+        # --- metrics ---
+        flat, curves = compute_recall_metrics(eval_scored)
+        for name, val in flat.items():
+            mlflow.log_metric(name, val)
+        for name, pts in curves.items():               # recall-vs-severity curves
+            for step, val in pts:
+                mlflow.log_metric(name, val, step=step)
+
+        # --- model ---
+        mlflow.sklearn.log_model(model, "model")
+
+        # --- serving artifacts: clip bounds + threshold travel with the model ---
+        import json, tempfile, os
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "clip_bounds.json"), "w") as f:
+                json.dump(bounds, f, indent=2)
+            with open(os.path.join(d, "threshold.json"), "w") as f:
+                json.dump({"threshold": threshold_info["threshold"],
+                           "fp_budget": threshold_info["fp_budget"]}, f, indent=2)
+            mlflow.log_artifacts(d, artifact_path="serving")
+
+        return run.info.run_id
+
+
+
+def export_model(model, bounds, threshold_info, name="isolation_forest"):
+    """Export a standalone serving bundle (no MLflow/SQLite needed at runtime).
+
+    Writes model + clip bounds + threshold + feature order into models/<name>/.
+    This is what Phase 5 (FastAPI/Cloud Run) loads. Mirrors the P1 standalone
+    export pattern.
+    """
+    out = MODELS_DIR / name
+    out.mkdir(parents=True, exist_ok=True)
+
+    joblib.dump(model, out / "model.pkl")
+    with open(out / "clip_bounds.json", "w") as f:
+        json.dump(bounds, f, indent=2)
+    with open(out / "threshold.json", "w") as f:
+        json.dump({"threshold": threshold_info["threshold"],
+                   "fp_budget": threshold_info["fp_budget"]}, f, indent=2)
+    with open(out / "feature_cols.json", "w") as f:
+        json.dump(FEATURE_COLS, f, indent=2)
+    return out
+
+
+def load_bundle(name="isolation_forest"):
+    """Load the standalone serving bundle. No MLflow dependency."""
+    d = MODELS_DIR / name
+    model = joblib.load(d / "model.pkl")
+    with open(d / "clip_bounds.json") as f:
+        bounds = {k: tuple(v) for k, v in json.load(f).items()}
+    with open(d / "threshold.json") as f:
+        thr = json.load(f)
+    with open(d / "feature_cols.json") as f:
+        cols = json.load(f)
+    return model, bounds, thr, cols
+
+
+def score_rows(df, model, bounds, threshold, cols):
+    """Score a pandas frame of feature rows (serving path).
+
+    Applies the training clip bounds, scores, flags at the operating threshold.
+    """
+    X = df.copy()
+    for c, (lo, hi) in bounds.items():
+        X[c] = X[c].clip(lower=lo, upper=hi)
+    scores = -model.score_samples(X[cols])
+    return pd.DataFrame({"anomaly_score": scores, "is_anomaly": scores >= threshold})
