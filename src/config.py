@@ -13,7 +13,7 @@ GRAIN = ["sku", "store", "week"]
 
 # GCP — us-central1 region: public/synthetic data, no GDPR localization
 # constraint, US free tier.
-GCP_REGION = "us-central1"
+GCP_REGION = "europe-west1"
 
 # Volume regime: density threshold to split dense / intermittent series.
 # To be calibrated after EDA (Phase 1). Injection-based evaluation will only

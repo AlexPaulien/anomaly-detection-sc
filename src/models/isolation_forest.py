@@ -6,8 +6,6 @@ import json
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import average_precision_score
 
-from pyspark.sql import functions as F
-
 from src.config import DATA_DIR, MLFLOW_TRACKING_URI, MLFLOW_EXPERIMENT, MODELS_DIR
 
 
@@ -21,6 +19,8 @@ def load_training_matrix(spark):
     pool). Rows lacking YoY (first 52 weeks) or rolling stats are dropped — no
     imputation of a 'last year' that doesn't exist.
     """
+    from pyspark.sql import functions as F
+    
     features = spark.read.parquet(str(DATA_DIR / "features.parquet"))
 
     # Keep only rows where every model feature is present.

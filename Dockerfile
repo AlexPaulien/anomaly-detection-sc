@@ -7,10 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements-serving.txt .
 # Spark is not required for SERVING (scoring only): the image could be slimmed
 # down by dropping pyspark here. To be decided at deployment time.
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-serving.txt
 
 COPY src/ ./src/
 COPY models/ ./models/
