@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements-serving.txt
 
 COPY src/ ./src/
 COPY models/ ./models/
+COPY viz/ ./viz/
 
 ENV PORT=8080
 CMD exec uvicorn src.serving.app:app --host 0.0.0.0 --port ${PORT}

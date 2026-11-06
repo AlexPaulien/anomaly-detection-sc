@@ -102,8 +102,7 @@ Final feature set (six columns):
 | `cat_code` | Encoded product category |
 | `month` | Fiscal month (coarse residual seasonality) |
 
-**Scope note:** the dense pool is fully continuous — all 15,509 series span the
-same 277 weeks with no gaps (density ≥ 0.8 selected products present since d_1),
+**Scope note:** the dense pool is fully continuous — series have variable lengths; validation and demo set showcase series with at least 52 weeks of historical date
 so rolling and YoY windows are calendar-exact by row position. Evaluation
 therefore covers mature, established series — not launch-phase products.
 

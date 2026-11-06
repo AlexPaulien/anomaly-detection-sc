@@ -2,7 +2,10 @@ from contextlib import asynccontextmanager
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+from pathlib import Path
 
 from src.models.isolation_forest import load_bundle, score_rows
 
@@ -66,3 +69,21 @@ def score(req: ScoringRequest):
         threshold=_state["threshold"],
         sku=req.sku, store=req.store, week=req.week,
     )
+
+
+
+VIZ_DIR = Path(__file__).resolve().parents[2] / "viz"
+
+
+@app.get("/")
+def index():
+    return FileResponse(VIZ_DIR / "anomaly_timeline.html")
+
+
+@app.get("/series_data.js")
+def series_data():
+    f = VIZ_DIR / "series_data.js"
+    if not f.exists():
+        raise HTTPException(status_code=404,
+                            detail="series_data.js not generated — run viz.export_series")
+    return FileResponse(f, media_type="application/javascript")
