@@ -11,7 +11,7 @@ pydantic==2.8.2
 # --- V2 (Phase 6 — LSTM Autoencoder) ---
 # Uncomment for V2. Training may be offloaded to Colab if 8 GB RAM is
 # insufficient.
-# tensorflow==2.16.1
+torch==2.4.1
 
 # --- Dev ---
 pytest==8.2.2
