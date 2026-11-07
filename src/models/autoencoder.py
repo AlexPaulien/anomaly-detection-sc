@@ -6,7 +6,7 @@ import torch.nn as nn
 
 from torch.utils.data import DataLoader, TensorDataset
 
-from src.config import DATA_DIR, MODELS_DIR
+from src.config import DATA_DIR, MODELS_DIR, MLFLOW_TRACKING_URI, MLFLOW_EXPERIMENT
 
 import json
 
@@ -207,4 +207,46 @@ def load_ae(name="autoencoder", device=None):
     model.load_state_dict(torch.load(out / "model.pt", map_location=device))
     model.eval()
     return model, cfg
+
+
+
+def compute_recall_metrics_ae(df, fp_budgets=(0.05, 0.01)):
+    """Recall@FP per type/severity → flat scalars + severity curves (step=int(k*10))."""
+    neg = df[df["label"] == 0]["ae_score"]
+    thr = {b: neg.quantile(1 - b) for b in fp_budgets}
+    flat, curves = {}, {}
+    for atype in ["spike", "drop", "contextual", "level_shift"]:
+        pt = df[(df["label"] == 1) & (df["anomaly_type"] == atype)]
+        for b in fp_budgets:
+            name = f"recall_{atype}_fp{int(b*100)}"
+            if pt["severity_k"].notna().any():
+                curves[name] = [(int(k * 10), float((pt[pt.severity_k == k].ae_score >= thr[b]).mean()))
+                                for k in sorted(pt["severity_k"].dropna().unique())]
+            else:
+                flat[name] = float((pt.ae_score >= thr[b]).mean())
+    return flat, curves
+
+
+def log_ae_run(model, cfg, best_val, df, run_name="autoencoder"):
+    """Log the AE run to the SAME MLflow experiment as the IF, with recall logged
+    by step=severity so IF and AE curves overlay in the UI."""
+    import mlflow
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT)
+
+    with mlflow.start_run(run_name=run_name) as run:
+        mlflow.log_params({"model": "lstm_ae", "hidden": cfg["hidden"],
+                           "latent": cfg["latent"], "window_l": cfg["window_l"],
+                           "seq_len": cfg["seq_len"]})
+        mlflow.log_metric("val_loss", best_val)
+
+        flat, curves = compute_recall_metrics_ae(df)
+        for name, val in flat.items():
+            mlflow.log_metric(name, val)
+        for name, pts in curves.items():
+            for step, val in pts:
+                mlflow.log_metric(name, val, step=step)
+
+        mlflow.log_artifacts(str(MODELS_DIR / "autoencoder"), artifact_path="model")
+        return run.info.run_id
 

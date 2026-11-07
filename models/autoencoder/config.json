@@ -1,9 +1,9 @@
 {
   "n_features": 3,
   "hidden": 32,
-  "latent": 16,
+  "latent": 4,
   "seq_len": 13,
   "window_l": 13,
   "seasonal_period": 52,
-  "best_val": 0.01910546433942388
+  "best_val": 0.08756770056419763
 }
