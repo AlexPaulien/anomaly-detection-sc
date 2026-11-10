@@ -261,3 +261,34 @@ def score_rows(df, model, bounds, threshold, cols):
         X[c] = X[c].clip(lower=lo, upper=hi)
     scores = -model.score_samples(X[cols])
     return pd.DataFrame({"anomaly_score": scores, "is_anomaly": scores >= threshold})
+
+
+
+def recompute_if_scores_pandas(sales, base, if_bundle, threshold):
+    """IF per-week anomaly scores on a (possibly modified) sales array, mirroring
+    the Spark feature pipeline in pandas (rolling-13 shifted z-score, YoY, WoW).
+
+    base: a DataFrame aligned to `sales`, providing snap_days/cat_code/month and
+          wm_yr_wk per row.
+    if_bundle: (model, bounds, cols) from load_bundle.
+    Returns {wm_yr_wk: anomaly_score} for the weeks with complete features.
+    """
+    model, bounds, cols = if_bundle
+    df = pd.DataFrame({"sales": np.asarray(sales, dtype=float)})
+    prior = df["sales"].shift(1)
+    df["roll_mean"] = prior.rolling(13).mean()
+    df["roll_std"] = prior.rolling(13).std()
+    df["sales_zscore"] = (df["sales"] - df["roll_mean"]) / df["roll_std"]
+    pv = df["sales"].shift(1)
+    df["wow_delta"] = (df["sales"] - pv) / pv
+    df["yoy_ratio"] = df["sales"] / df["sales"].shift(52)
+    for c in ("snap_days", "cat_code", "month"):
+        df[c] = base[c].to_numpy()
+    df["wk"] = base["wm_yr_wk"].to_numpy()
+    for c in ("sales_zscore", "wow_delta", "yoy_ratio"):
+        df.loc[~np.isfinite(df[c]), c] = np.nan
+    valid = df.dropna(subset=cols)
+    if len(valid) == 0:
+        return {}
+    sc = score_rows(valid, model, bounds, threshold, cols)["anomaly_score"].values
+    return {int(w): float(s) for w, s in zip(valid["wk"].to_numpy(), sc)}
