@@ -218,7 +218,7 @@ perfectly, so including them would only dilute the signal.
 **Why median / IQR rather than mean / standard deviation.**
 
 ```math
-\tilde y_t = \frac{y_t - \operatorname{median}(y)}{Q_3(y) - Q_1(y)}
+\tilde y_t = \frac{y_t - \mathrm{median}(y)}{Q_3(y) - Q_1(y)}
 ```
 
 The statistics that define "normal" must not be moved by the anomalies we are
