@@ -1,7 +1,7 @@
 # Anomaly Detection — Supply Chain
 
 Unsupervised demand anomaly detection on the public **M5 Walmart** dataset.
-Spikes, drops, trend breaks and sustained regime changes are surfaced at the
+Spikes, drops, trend breaks and sustained regime changes are analyzed at the
 SKU × Store × week grain so a planner can act before they cascade into a
 stockout or overstock. Two complementary models (an Isolation Forest and an LSTM
 autoencoder) are combined into a single consensus detector.
@@ -17,7 +17,7 @@ autoencoder) are combined into a single consensus detector.
 
 ## Problem
 
-Demand planners cannot eyeball tens of thousands of SKU × store series every
+Demand planners cannot analyze tens of thousands of SKU × store series every
 week. The goal is to automatically flag the weeks whose demand behaviour is
 abnormal — with an honest, measurable notion of "abnormal" — so review effort
 goes where it matters.
@@ -62,14 +62,25 @@ notebooks/
 Every feature decision is backed by a number, not intuition. Full analysis in
 `notebooks/01_eda.ipynb`.
 
-- **Weekly aggregation already tames intermittency.** Zero-sales share is 39.7%
+- **Weekly aggregation already reduces intermittency.** Zero-sales share is 39.7%
   at the weekly grain. After trimming cold-start zeros (weeks before a product's
   first sale — 21% of the raw grid), true demand intermittency is a moderate
   **23.9%**.
 - **Density is a continuum, not two populations.** No bimodality, so the
-  dense/sparse threshold is set by *evaluation need* (a rolling z-score needs a
-  well-defined local variance), not by a natural gap. **Dense pool = density ≥
-  0.8 AND life ≥ 52 weeks → 15,509 series** across all three categories.
+  dense/sparse threshold is set by *evaluation need*, not by a natural gap: the
+  rolling z-score needs a well-defined local variance. For week $t$ of a series
+  with weekly sales $y$:
+
+  ```math
+  z_t = \frac{y_t - \mu_t}{\sigma_t}, \qquad
+  \mu_t = \frac{1}{13}\sum_{i=1}^{13} y_{t-i}, \qquad
+  \sigma_t = \sqrt{\frac{1}{12}\sum_{i=1}^{13}\left(y_{t-i} - \mu_t\right)^2}
+  ```
+
+  The mean and standard deviation cover the 13 weeks *before* $t$, so an anomaly
+  cannot inflate its own baseline. On a mostly-zero series $\sigma_t$ collapses
+  and $z_t$ stops meaning anything, hence the density floor. **Dense pool =
+  density ≥ 0.8 AND life ≥ 52 weeks → 15,509 series** across all three categories.
 - **Seasonal deviation is computed per series, year-over-year.** The global
   seasonal profile mixes trend and fiscal-calendar effects (Walmart's fiscal
   year starts in February); a per-series N-1 comparison is robust to this by
@@ -83,7 +94,7 @@ Every feature decision is backed by a number, not intuition. Full analysis in
 
 ## Feature engineering
 
-**Golden rule: no absolute levels reach the models.** Raw sales are used only to
+**Golden rule: no absolute levels fed to the models.** Raw sales are used only to
 *compute* features; the models see deviations (IF) or per-series-normalized shape
 (AE), so a high-volume store is not flagged just for being large.
 
@@ -91,7 +102,7 @@ The Isolation Forest's six features:
 
 | Feature | Meaning |
 |---|---|
-| `sales_zscore` | Rolling 13-week z-score, **shifted** (prior weeks only) so an anomaly can't mask itself |
+| `sales_zscore` | Rolling 13-week z-score $z_t$ (formula above), computed on **prior weeks only** so an anomaly can't mask itself |
 | `yoy_ratio` | Sales vs the same week one year earlier, per series |
 | `wow_delta` | Week-over-week relative change |
 | `snap_days` | SNAP days in the week (0–7) |
@@ -111,15 +122,38 @@ the AE, which needs no YoY, can score earlier.
 
 Both models output an **anomaly score where higher = more anomalous**, and a week
 is flagged when its score crosses an **operating threshold set from a
-false-positive budget** (flag ~5% of clearly-normal weeks), never from an
-invented monetary cost. The two scores are then combined into a consensus.
+false-positive budget** (flag ~5% of clearly-normal weeks). The two scores are then combined into a consensus.
 
 ### 1 — Isolation Forest (tabular, point-in-time view)
 
-The six deviation features feed an Isolation Forest. The model isolates a point
-by random splits; anomalies are isolated in fewer splits (shorter path), so the
-raw path-length score separates them. We use `-score_samples` so that **higher =
-more anomalous**.
+**How the algorithm works.** An Isolation Forest does not model what normal
+looks like; it measures how easy a point is to *isolate*. Each tree is grown on a
+random subsample of $\psi = 256$ weeks: at every node it picks a random feature
+and a random split value between that feature's min and max, and keeps splitting
+until every point sits alone in a leaf. A normal week lies in a dense region and
+needs many splits to be separated from its neighbours; an anomalous week sits
+apart and is cut off after a few. The path length $h(x)$, the number of splits
+from the root to $x$'s leaf, is therefore short for anomalies.
+
+Averaged over the 200 trees and normalized by the expected path length of a
+random binary search tree on $\psi$ points, this gives the anomaly score of the
+original paper (Liu, Ting & Zhou, 2008):
+
+```math
+s(x) = 2^{-\,\mathbb{E}[h(x)] \,/\, c(\psi)}, \qquad
+c(\psi) = 2H(\psi - 1) - \frac{2(\psi - 1)}{\psi}, \qquad
+H(i) \approx \ln i + 0.5772
+```
+
+$s(x)$ tends to 1 for points isolated quickly and stays around 0.5 or below for
+normal points. scikit-learn's `score_samples` returns $-s(x)$, so we negate it:
+our anomaly score is $s(x)$ itself, **higher = more anomalous** (the operating
+threshold lands at 0.55).
+
+Two properties matter here. Splits are thresholds, so the model is insensitive
+to feature scale and needs no normalization. And subsampling keeps training cheap
+(about one second on 2.2M rows); anomalies are actually *easier* to isolate in
+small samples, which is why $\psi = 256$ is the canonical setting.
 
 - **Clipping.** The three derived features (`sales_zscore`, `yoy_ratio`,
   `wow_delta`) have heavy tails — a degenerate near-constant series can produce a
@@ -142,6 +176,71 @@ reconstructs it. The **reconstruction error on the sales channel is the anomaly
 score**: the model learns to reconstruct *normal* window shapes, so a shape it
 hasn't learned (a sustained level shift, a shock) reconstructs poorly.
 
+**Architecture.**
+
+```mermaid
+flowchart LR
+    A["Input window<br/>13 weeks × 3 channels"] --> B["LSTM encoder<br/>hidden 32"]
+    B -->|"last hidden state (32)"| C["Linear 32 → 4"]
+    C --> Z(("latent<br/>4"))
+    Z --> D["Linear 4 → 32"]
+    D -->|"repeated over 13 steps"| E["LSTM decoder<br/>hidden 32"]
+    E --> F["Linear 32 → 3<br/>per week"]
+    F --> G["Reconstruction<br/>13 weeks × 3 channels"]
+```
+
+| Layer | Output shape | Parameters |
+|---|---|---|
+| Input `[sales_norm, sin, cos]` | 13 × 3 | — |
+| LSTM encoder (hidden 32), last hidden state kept | 32 | 4,736 |
+| Linear → latent | 4 | 132 |
+| Linear ← latent, repeated over the 13 steps | 13 × 32 | 160 |
+| LSTM decoder (hidden 32) | 13 × 32 | 8,448 |
+| Linear, applied at each step | 13 × 3 | 99 |
+| **Total** | | **13,575** |
+
+The encoder reads the window week by week and summarises it in its final hidden
+state; the latent layer compresses that summary to 4 numbers; the decoder has to
+rebuild the full window from those 4 numbers alone. Training minimises the MSE
+over all three channels (Adam, learning rate $10^{-3}$, batch 512, ~774k windows
+sampled at 50 per series, early stopping on validation loss). The anomaly score
+uses the sales channel only, and is attached to the window's centre week:
+
+```math
+\text{score} = \frac{1}{13}\sum_{t=1}^{13}\left(\tilde y_t - \hat{\tilde y}_t\right)^2
+```
+
+where $\tilde y_t$ is the normalized sales and $\hat{\tilde y}_t$ its
+reconstruction. The seasonal channels are deterministic and rebuilt almost
+perfectly, so including them would only dilute the signal.
+
+- **Why median / IQR rather than mean / standard deviation.**
+
+  ```math
+  \tilde y_t = \frac{y_t - \operatorname{median}(y)}{Q_3(y) - Q_1(y)}
+  ```
+
+  The statistics that define "normal" must not be moved by the anomalies we are
+  trying to find, and a mean and standard deviation are: a single spike inflates
+  $\sigma$ and shrinks its own normalized deviation, and a level shift drags the
+  mean toward the new level. The median only moves if more than half the weeks
+  change, the quartiles if more than a quarter do, so a handful of abnormal weeks
+  leaves them almost untouched. Dividing by the IQR also puts series of 5 and 500
+  units a week on the same scale, in line with the no-absolute-levels rule.
+  Near-constant series (IQR ≈ 0) fall back to the standard deviation, then to 1.
+- **Why sin / cos of the week of year.**
+
+  ```math
+  \theta = \frac{2\pi \cdot \text{week}}{52}, \qquad (\sin\theta,\ \cos\theta)
+  ```
+
+  Without a seasonal reference the AE would flag the normal pre-holiday ramp as an
+  anomaly, the same trap the IF avoids with `yoy_ratio`. Week of year is cyclical,
+  so a raw integer is the wrong encoding: it puts week 52 and week 1 fifty-one
+  units apart when they are neighbours. Mapping it onto a circle fixes that. Both
+  coordinates are needed, because a sine alone gives the same value to two
+  different weeks (weeks 1 and 25, for instance); the (sin, cos) pair is unique
+  for every week, in two channels instead of 52 one-hot columns.
 - **Global, non-adaptive normalization.** Each series is normalized by its own
   *global* median/IQR. This is the key design choice: a late level shift barely
   moves the global median, so the shifted weeks stay a visible offset. The IF's
@@ -177,6 +276,26 @@ its sustained plateau lands in `ae_only`, the absorption story made legible.
 
 ### Metric and honest negatives
 
+**Recall** is the share of true anomalies a detector catches:
+
+```math
+\text{recall} = \frac{TP}{TP + FN}
+```
+
+On its own it means nothing, since flagging every week gives 100% recall. So the
+threshold is fixed first, from a false-positive budget $\alpha$ on the set $N$ of
+clearly-normal weeks, and recall is then measured on the set $P$ of injected
+anomalies at that threshold:
+
+```math
+\tau_\alpha = Q_{1-\alpha}\big(\{\, s(x) : x \in N \,\}\big), \qquad
+\text{recall}@\alpha = \frac{\big|\{\, x \in P : s(x) \ge \tau_\alpha \,\}\big|}{|P|}
+```
+
+With $\alpha = 5\%$, $\tau$ is the 95th percentile of normal-week scores: 5% of
+normal weeks are flagged by construction, and recall says what share of real
+anomalies make it into that same alert list.
+
 The headline metric is **recall at a fixed FP budget**, not PR-AUC: at ~1:150
 positive:negative imbalance, PR-AUC is mechanically low and hard to read. Recall
 at a fixed FP rate answers *"within the alert budget a planner can triage, what
@@ -205,7 +324,7 @@ Three validations confirm the injection mechanism behaves as intended:
   (mean |z| = 1.47) but explode in the YoY ratio (mean |yoy − 1| = 1.09).
 - **Level shifts reproduce rolling-detector absorption.** Across the plateau the
   recomputed z-score decays 3.01 → 0.79: the IF flags the onset and goes blind to
-  the persistence — the mechanistic case for a sequence model.
+  the persistence — the case for a sequence model.
 - **Drop injection is volume-restricted** (mean − k·σ must stay > 0), so drop
   recall is measured on high-volume series — a documented scope limit.
 
@@ -224,19 +343,17 @@ Recall at a 5% FP budget (per type, k = 4):
 
 - **Neither specialist is good at both.** The IF owns point shocks but is blind
   to sustained shifts (26%); the AE owns sustained shifts but misses spikes
-  (19%). This complementarity is the mechanistic payoff of the global-vs-rolling
-  normalization difference — not postulated, measured.
+  (19%). This complementarity is the payoff of the global-vs-rolling
+  normalization difference.
 - **The consensus is the robust single detector.** At the same 5% budget it is
   the only detector good on *both* classes (spike 68%, level_shift 57%). It can't
   dominate each type at a *shared* FP budget (a mathematical limit — the budget is
   split), but it has by far the best worst-case across the two classes a planner
   can't tell apart in advance (57% vs the IF's 26%, the AE's 19%).
 - **Contextual and drop stay weak** across all three — neither model is strong
-  there, and the consensus can't invent a signal that isn't in either. Stated
-  plainly.
+  there, and the consensus can't invent a signal that isn't in either. 
 
-Thresholds come from a 5% alert budget, not an invented cost; a sensitivity curve
-(recall vs budget) exposes the trade-off. Training, evaluation and thresholds for
+Thresholds come from a 5% alert budget. Training, evaluation and thresholds for
 all three detectors are tracked in MLflow with recall logged by step = severity,
 so the IF / AE / consensus curves overlay in the UI.
 
@@ -273,8 +390,8 @@ curl -X POST <url>/score -H "Content-Type: application/json" \
   (~330/week) while IF-only alerts peak on calendar weeks. In production the
   alert budget would be tightened or weighted by SKU criticality.
 - **Scale-to-zero** keeps idle cost ~nil; the first request after idle has a
-  cold-start delay. An assumed trade-off, not a defect.
-
+  cold-start delay. 
+  
 ## Stack
 
 Python · PySpark (local mode) · scikit-learn · PyTorch · MLflow · FastAPI ·
