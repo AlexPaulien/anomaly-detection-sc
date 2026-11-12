@@ -86,3 +86,16 @@ def series_data():
         raise HTTPException(status_code=404,
                             detail="series_data.js not generated — run viz.export_series")
     return FileResponse(f, media_type="application/javascript")
+
+
+@app.get("/triage")
+def triage():
+    return FileResponse(VIZ_DIR / "triage.html")
+
+
+@app.get("/alerts_data.js")
+def alerts_data():
+    f = VIZ_DIR / "alerts_data.js"
+    if not f.exists():
+        raise HTTPException(status_code=404, detail="run viz.export_alerts")
+    return FileResponse(f, media_type="application/javascript")
