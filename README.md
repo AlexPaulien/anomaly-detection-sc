@@ -9,8 +9,9 @@ autoencoder) are combined into a single consensus detector.
 > ⚠️ **Data:** public M5 dataset only. No company data is used or versioned in
 > this repository.
 
-**Live API (Cloud Run):** `https://anomaly-detection-sc-117719476260.europe-west1.run.app`
-— an interactive timeline demo at `/`, plus `POST /score` and docs at `/docs`.
+**Live demo (Cloud Run):** `https://anomaly-detection-sc-117719476260.europe-west1.run.app`
+— an interactive timeline at `/`, a weekly triage queue at `/triage`, plus
+`POST /score` and API docs at `/docs`.
 
 ---
 
@@ -44,7 +45,8 @@ src/
   evaluation/   synthetic injection + IF/AE/consensus evaluation
   models/       Isolation Forest, LSTM autoencoder
   serving/      FastAPI app
-viz/            interactive timeline (D3) + data export
+viz/            interactive timeline + triage dashboard (D3) and their data exports
+                (export_series.py -> series_data.js, export_alerts.py -> alerts_data.js)
 
 notebooks/
   01_eda.ipynb              EDA + density segmentation
@@ -262,6 +264,14 @@ curl -X POST <url>/score -H "Content-Type: application/json" \
 - **Interactive timeline** (`/`, D3): pick a SKU × store series and see weekly
   sales with both models' flags overlaid — including a controlled injected
   level shift that makes the IF-vs-AE contrast visible.
+- **Weekly triage queue** (`/triage`, D3): for each of the last 12 scorable
+  weeks, every dense series is scored by both models and alerts are ranked by the
+  consensus score. Each alert carries its tier (both / IF only / AE only), the
+  two models' percentiles, a 12-month sparkline, and an expandable detail view.
+  ~6–9% of series-weeks are flagged (calibration is on clearly-normal weeks; real
+  weeks include natural anomalies). AE-only alerts are a steady background
+  (~330/week) while IF-only alerts peak on calendar weeks. In production the
+  alert budget would be tightened or weighted by SKU criticality.
 - **Scale-to-zero** keeps idle cost ~nil; the first request after idle has a
   cold-start delay. An assumed trade-off, not a defect.
 
@@ -272,9 +282,9 @@ Docker · GCP Cloud Run · D3.js
 
 ## Status & roadmap
 
-**Two-model system complete** — Isolation Forest, LSTM autoencoder, and a
-consensus layer, each evaluated on the same injection harness and tracked in
-MLflow, served live on Cloud Run with an interactive timeline.
+**Complete.** Isolation Forest, LSTM autoencoder and a consensus layer, each
+evaluated on the same injection harness and tracked in MLflow, served live on
+Cloud Run with an interactive timeline and a weekly triage dashboard.
 
 - [x] Phase 1 — EDA + weekly aggregation + density segmentation
 - [x] Phase 2 — Contextual feature engineering
@@ -283,5 +293,11 @@ MLflow, served live on Cloud Run with an interactive timeline.
 - [x] Phase 5 — FastAPI + Cloud Run *(publishable MVP milestone)*
 - [x] Phase 6 — LSTM autoencoder + IF-vs-AE comparison
 - [x] Phase 7 — Consensus layer + agreement tiers
-- [ ] Phase 8 — Triage dashboard (ranked alerts by tier)
-- [ ] Phase 9 — Pub/Sub stream simulation
+- [x] Phase 8 — Weekly triage dashboard (alerts ranked by consensus, tagged by tier)
+- [ ] ~~Phase 9 — Pub/Sub stream simulation~~ — **considered, dropped.** Demand
+  here is weekly, and anomaly review in S&OP runs on a weekly cadence: data lands,
+  the queue is scored, planners triage. Streaming would add infrastructure without
+  changing what a planner sees or when. The fitting architecture is a scheduled
+  weekly batch job (e.g. Cloud Scheduler → Cloud Run job re-running the export).
+  Real-time scoring would also need the autoencoder retrained on trailing windows,
+  since its centred 13-week window lags the latest data by 6 weeks.
