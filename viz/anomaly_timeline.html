@@ -28,7 +28,11 @@
     padding: 24px 16px;
   }
   .wrap { max-width: 920px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
   header h1 { font-size: 20px; margin: 0 0 4px; }
+  header .sub { flex-basis: 100%; }
+  header a { color: var(--muted); font-size: 13px; }
+  header a:hover { color: var(--ink); }
   header p { color: var(--muted); margin: 0 0 20px; }
   .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
   .controls label { color: var(--muted); font-size: 13px; }
@@ -65,8 +69,9 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Anomaly Timeline</h1>
-    <p>Weekly sales for one SKU × store, with anomaly flags per model.</p>
+        <h1>Anomaly Timeline</h1>
+        <a href="/triage">Weekly triage queue →</a>
+        <p class="sub">Weekly sales for one SKU × store, with anomaly flags per model.</p>
   </header>
 
   <div class="controls">
