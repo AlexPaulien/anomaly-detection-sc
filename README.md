@@ -68,19 +68,20 @@ Every feature decision is backed by a number, not intuition. Full analysis in
   **23.9%**.
 - **Density is a continuum, not two populations.** No bimodality, so the
   dense/sparse threshold is set by *evaluation need*, not by a natural gap: the
-  rolling z-score needs a well-defined local variance. For week $t$ of a series
-  with weekly sales $y$:
+  rolling z-score (below) needs a well-defined local variance. **Dense pool =
+  density ≥ 0.8 AND life ≥ 52 weeks → 15,509 series** across all three categories.
 
-  ```math
-  z_t = \frac{y_t - \mu_t}{\sigma_t}, \qquad
-  \mu_t = \frac{1}{13}\sum_{i=1}^{13} y_{t-i}, \qquad
-  \sigma_t = \sqrt{\frac{1}{12}\sum_{i=1}^{13}\left(y_{t-i} - \mu_t\right)^2}
-  ```
+  For week $t$ of a series with weekly sales $y$, the rolling z-score is:
+
+```math
+z_t = \frac{y_t - \mu_t}{\sigma_t}, \qquad
+\mu_t = \frac{1}{13}\sum_{i=1}^{13} y_{t-i}, \qquad
+\sigma_t = \sqrt{\frac{1}{12}\sum_{i=1}^{13}\left(y_{t-i} - \mu_t\right)^2}
+```
 
   The mean and standard deviation cover the 13 weeks *before* $t$, so an anomaly
   cannot inflate its own baseline. On a mostly-zero series $\sigma_t$ collapses
-  and $z_t$ stops meaning anything, hence the density floor. **Dense pool =
-  density ≥ 0.8 AND life ≥ 52 weeks → 15,509 series** across all three categories.
+  and $z_t$ stops meaning anything, hence the density floor.
 - **Seasonal deviation is computed per series, year-over-year.** The global
   seasonal profile mixes trend and fiscal-calendar effects (Walmart's fiscal
   year starts in February); a per-series N-1 comparison is robust to this by
@@ -214,33 +215,35 @@ where $\tilde y_t$ is the normalized sales and $\hat{\tilde y}_t$ its
 reconstruction. The seasonal channels are deterministic and rebuilt almost
 perfectly, so including them would only dilute the signal.
 
-- **Why median / IQR rather than mean / standard deviation.**
+**Why median / IQR rather than mean / standard deviation.**
 
-  ```math
-  \tilde y_t = \frac{y_t - \operatorname{median}(y)}{Q_3(y) - Q_1(y)}
-  ```
+```math
+\tilde y_t = \frac{y_t - \operatorname{median}(y)}{Q_3(y) - Q_1(y)}
+```
 
-  The statistics that define "normal" must not be moved by the anomalies we are
-  trying to find, and a mean and standard deviation are: a single spike inflates
-  $\sigma$ and shrinks its own normalized deviation, and a level shift drags the
-  mean toward the new level. The median only moves if more than half the weeks
-  change, the quartiles if more than a quarter do, so a handful of abnormal weeks
-  leaves them almost untouched. Dividing by the IQR also puts series of 5 and 500
-  units a week on the same scale, in line with the no-absolute-levels rule.
-  Near-constant series (IQR ≈ 0) fall back to the standard deviation, then to 1.
-- **Why sin / cos of the week of year.**
+The statistics that define "normal" must not be moved by the anomalies we are
+trying to find, and a mean and standard deviation are: a single spike inflates
+$\sigma$ and shrinks its own normalized deviation, and a level shift drags the
+mean toward the new level. The median only moves if more than half the weeks
+change, the quartiles if more than a quarter do, so a handful of abnormal weeks
+leaves them almost untouched. Dividing by the IQR also puts series of 5 and 500
+units a week on the same scale, in line with the no-absolute-levels rule.
+Near-constant series (IQR ≈ 0) fall back to the standard deviation, then to 1.
 
-  ```math
-  \theta = \frac{2\pi \cdot \text{week}}{52}, \qquad (\sin\theta,\ \cos\theta)
-  ```
+**Why sin / cos of the week of year.**
 
-  Without a seasonal reference the AE would flag the normal pre-holiday ramp as an
-  anomaly, the same trap the IF avoids with `yoy_ratio`. Week of year is cyclical,
-  so a raw integer is the wrong encoding: it puts week 52 and week 1 fifty-one
-  units apart when they are neighbours. Mapping it onto a circle fixes that. Both
-  coordinates are needed, because a sine alone gives the same value to two
-  different weeks (weeks 1 and 25, for instance); the (sin, cos) pair is unique
-  for every week, in two channels instead of 52 one-hot columns.
+```math
+\theta = \frac{2\pi \cdot \text{week}}{52}, \qquad (\sin\theta,\ \cos\theta)
+```
+
+Without a seasonal reference the AE would flag the normal pre-holiday ramp as an
+anomaly, the same trap the IF avoids with `yoy_ratio`. Week of year is cyclical,
+so a raw integer is the wrong encoding: it puts week 52 and week 1 fifty-one
+units apart when they are neighbours. Mapping it onto a circle fixes that. Both
+coordinates are needed, because a sine alone gives the same value to two
+different weeks (weeks 1 and 25, for instance); the (sin, cos) pair is unique
+for every week, in two channels instead of 52 one-hot columns.
+
 - **Global, non-adaptive normalization.** Each series is normalized by its own
   *global* median/IQR. This is the key design choice: a late level shift barely
   moves the global median, so the shifted weeks stay a visible offset. The IF's
