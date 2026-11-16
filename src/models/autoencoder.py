@@ -211,7 +211,7 @@ def load_ae(name="autoencoder", device=None):
 
 
 def compute_recall_metrics_ae(df, fp_budgets=(0.05, 0.01)):
-    """Recall@FP per type/severity → flat scalars + severity curves (step=int(k*10))."""
+    """Recall@FP per type/severity"""
     neg = df[df["label"] == 0]["ae_score"]
     thr = {b: neg.quantile(1 - b) for b in fp_budgets}
     flat, curves = {}, {}
@@ -229,7 +229,7 @@ def compute_recall_metrics_ae(df, fp_budgets=(0.05, 0.01)):
 
 def log_ae_run(model, cfg, best_val, df, run_name="autoencoder"):
     """Log the AE run to the SAME MLflow experiment as the IF, with recall logged
-    by step=severity so IF and AE curves overlay in the UI."""
+    by severity so IF and AE curves overlay in the UI."""
     import mlflow
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     mlflow.set_experiment(MLFLOW_EXPERIMENT)
