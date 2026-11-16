@@ -2,15 +2,13 @@
 
 Unsupervised demand anomaly detection on the public **M5 Walmart** dataset.
 Spikes, drops, trend breaks and sustained regime changes are analyzed at the
-SKU × Store × week grain so a planner can act before they cascade into a
+SKU × Store × week level so a planner can act before they cascade into a
 stockout or overstock. Two complementary models (an Isolation Forest and an LSTM
 autoencoder) are combined into a single consensus detector.
 
-> ⚠️ **Data:** public M5 dataset only. No company data is used or versioned in
-> this repository.
 
 **Live demo (Cloud Run):** `https://anomaly-detection-sc-117719476260.europe-west1.run.app`
-— an interactive timeline at `/`, a weekly triage queue at `/triage`, plus
+— an interactive line chart with flags at `/`, a weekly triage queue at `/triage`, plus
 `POST /score` and API docs at `/docs`.
 
 ---
@@ -19,12 +17,11 @@ autoencoder) are combined into a single consensus detector.
 
 Demand planners cannot analyze tens of thousands of SKU × store series every
 week. The goal is to automatically flag the weeks whose demand behaviour is
-abnormal — with an honest, measurable notion of "abnormal" — so review effort
-goes where it matters.
+abnormal so review effort goes where it matters.
 
 The task is **unsupervised** (no labels) and M5 is a real, noisy retail dataset.
 Most of the engineering below is about making detection *measurable*, *honest*,
-and *robust to the kind of anomaly* — which a planner cannot know in advance.
+and *robust to each kind of anomaly*.
 
 ## Approach
 
@@ -59,7 +56,7 @@ notebooks/
 
 ## Key EDA findings
 
-Every feature decision is backed by a number, not intuition. Full analysis in
+Every feature decision is backed the dataset analysis. Full analysis in
 `notebooks/01_eda.ipynb`.
 
 - **Weekly aggregation already reduces intermittency.** Zero-sales share is 39.7%
@@ -146,6 +143,11 @@ c(\psi) = 2H(\psi - 1) - \frac{2(\psi - 1)}{\psi}, \qquad
 H(i) \approx \ln i + 0.5772
 ```
 
+$h(x)$ is the number of splits necessary to isolate one observation. The more 
+anomalous an observation is, the fewer splits it is going to need to be isolated.
+The average path length of an observation across many trees is divided by $c(\psi)$
+which is the typical path length of a normal observation.
+
 $s(x)$ tends to 1 for points isolated quickly and stays around 0.5 or below for
 normal points. scikit-learn's `score_samples` returns $-s(x)$, so we negate it:
 our anomaly score is $s(x)$ itself, **higher = more anomalous** (the operating
@@ -215,21 +217,6 @@ where $\tilde y_t$ is the normalized sales and $\hat{\tilde y}_t$ its
 reconstruction. The seasonal channels are deterministic and rebuilt almost
 perfectly, so including them would only dilute the signal.
 
-**Why median / IQR rather than mean / standard deviation.**
-
-```math
-\tilde y_t = \frac{y_t - \mathrm{median}(y)}{Q_3(y) - Q_1(y)}
-```
-
-The statistics that define "normal" must not be moved by the anomalies we are
-trying to find, and a mean and standard deviation are: a single spike inflates
-$\sigma$ and shrinks its own normalized deviation, and a level shift drags the
-mean toward the new level. The median only moves if more than half the weeks
-change, the quartiles if more than a quarter do, so a handful of abnormal weeks
-leaves them almost untouched. Dividing by the IQR also puts series of 5 and 500
-units a week on the same scale, in line with the no-absolute-levels rule.
-Near-constant series (IQR ≈ 0) fall back to the standard deviation, then to 1.
-
 **Why sin / cos of the week of year.**
 
 ```math
@@ -246,10 +233,22 @@ for every week, in two channels instead of 52 one-hot columns.
 
 - **Global, non-adaptive normalization.** Each series is normalized by its own
   *global* median/IQR. This is the key design choice: a late level shift barely
-  moves the global median, so the shifted weeks stay a visible offset. The IF's
-  13-week *rolling* window, by contrast, adapts to the new level and absorbs the
+  moves the global median, so the shifted weeks stay a visible offset. The statistics that define "normal" must not be moved by the anomalies we are
+  trying to find, and a mean and standard deviation are: a single spike inflates
+  $\sigma$ and shrinks its own normalized deviation, and a level shift drags the
+  mean toward the new level. The median only moves if more than half the weeks
+  change, the quartiles if more than a quarter do, so a handful of abnormal weeks
+  leaves them almost untouched. Dividing by the IQR also puts series of 5 and 500
+  units a week on the same scale, in line with the no-absolute-levels rule.
+  Near-constant series (IQR ≈ 0) fall back to the standard deviation, then to 1.
+  The IF's 13-week *rolling* window, by contrast, adapts to the new level and absorbs the
   shift within ~13 weeks. Same data, two notions of "normal" — and this is why
   the AE catches sustained regime changes the IF goes blind to.
+
+```math
+\tilde y_t = \frac{y_t - \mathrm{median}(y)}{Q_3(y) - Q_1(y)}
+```
+
 - **Tight bottleneck.** latent = 4 (< the 13 sales values) forces the AE to
   encode only the dominant normal structure. A wider latent (8, 16) reconstructs
   *everything* — including anomalies — so it has lower reconstruction error but
